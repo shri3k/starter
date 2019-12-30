@@ -11,30 +11,40 @@
 
 : ${STARTER_REPO:='git@github.com:shri3k/min'}
 
-function starters() {
-  if [ -z $1 ]
-  then
-    echo "No branch provided"
-    return 1
-  fi
+function starter() (
+  local CURRDIR=$PWD
+  local TMP_FOLDER="/tmp/.$(date +%s)"
 
-  TMP_FOLDER=".$(date +%s)"
-  BRANCH="${1}"
-  DEPTH="${2:-1}"
+  function cleanup() {
+    echo "Cleaning up"
+    rm -rf "${TMP_FOLDER}"
+    cd "${CURRDIR}" || exit
+  }
 
-  echo "Cloning $STARTER_REPO with branch $BRANCH"
-  cd /tmp/ && git clone --depth "$DEPTH" "$STARTER_REPO" --branch "$BRANCH" --single-branch "$TMP_FOLDER" && rm -rf .git
-  if [ $? -eq 0 ]
+
+  function starters() {
+    trap cleanup EXIT
+
+    if [ -z "${1}" ]
     then
-    echo "Copying files"
-    mv "/tmp/$TMP_FOLDER/" "$PWD"
-    rm -rf "$TMP_FOLDER"
-  else
-    return 1
-  fi
-}
+      >&2 echo "No branch provided"
+      return 1
+    fi
 
-function help() {
+    local BRANCH="${1}"
+    local DEPTH="${2:-1}"
+
+    echo "Cloning $STARTER_REPO with branch $BRANCH"
+    if cd /tmp/ && git clone --depth "$DEPTH" "$STARTER_REPO" --branch "$BRANCH" --single-branch "$TMP_FOLDER" && rm -rf .git
+      then
+      echo "Copying files"
+      mv "${TMP_FOLDER}" "${PWD}"
+    else
+      return 1
+    fi
+  }
+
+  function help() {
 cat << EOF
 
 Usage: starter <branch_name> [depth=1]
@@ -43,17 +53,19 @@ Clones repository from repo that is defined in $STARTER_REPO
 or defaults to $STARTER_REPO
 
 EOF
-}
+  }
 
-case $1 in
-  "help"|"-h"|"--help")
-    help
-    ;;
-  *)
-    starters $@
-    if [ $? -eq 1 ]
-      then
+  case $1 in
+    "help"|"-h"|"--help")
       help
-    fi
-    ;;
-esac
+      ;;
+    *)
+      starters "${@}"
+      if [ $? -eq 1 ]
+      then
+        help
+      fi
+      ;;
+  esac
+
+)
